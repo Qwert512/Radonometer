@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CPU Usage Graph</title>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+</head>
+<body>
+    <div id="graph"></div>
+    <script>
+        var ws = new WebSocket("ws://" + location.host + "/ws");
+        var x = [], y = [];
+        var layout = {title: "CPU Usage Graph", xaxis: {title: "Time"}, yaxis: {title: "CPU Usage (%)"}, margin: {t: 30}};
+        var trace = {x: x, y: y, mode: "lines", line: {color: "#2196F3"}};
+        Plotly.newPlot("graph", [trace], layout);
+        ws.onmessage = function(event) {
+            var data = JSON.parse(event.data);
+            x = data.x;
+            y = data.y;
+            Plotly.update("graph", {x: [x], y: [y]});
+        }
+    </script>
+</body>
+</html>
