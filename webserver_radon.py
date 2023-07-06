@@ -1,7 +1,7 @@
 import time, math, statistics, os, json
 from datetime import datetime
 from typing import Dict
-import numpy as np
+import numpy as np, uvicorn
 import matplotlib.pyplot as plt
 from fastapi import FastAPI, responses
 
@@ -21,6 +21,9 @@ default_json_data = {
 }
 
 data_file = "data.json"
+
+if __name__ == "__main__":
+    uvicorn.run("webserver_radon:app", host="127.0.0.1", port=8000)
 
 def update_data(data:str, time_format="%Y-%m-%d %H:%M:%S"):
     global start_time
@@ -42,25 +45,58 @@ def update_data(data:str, time_format="%Y-%m-%d %H:%M:%S"):
     time_elapsed = datetime.now() - start_time
     minutes_elapsed = math.ceil(time_elapsed.total_seconds() / 60)
     
-    if "rohr_1" not in existing_data["data"]["raw_minutes"]:
-        existing_data["data"]["raw_minutes"]["rohr_1"] = {}
-        
-    if "rohr_2" not in existing_data["data"]["raw_minutes"]:
-        existing_data["data"]["raw_minutes"]["rohr_2"] = {}
-    
-    if str(minutes_elapsed) not in existing_data["data"]["raw_minutes"]["rohr_1"]:
-        existing_data["data"]["raw_minutes"]["rohr_1"][str(minutes_elapsed)] = 0
-    
-    if str(minutes_elapsed) not in existing_data["data"]["raw_minutes"]["rohr_2"]:
-        existing_data["data"]["raw_minutes"]["rohr_2"][str(minutes_elapsed)] = 0
-        
-    if data == "1":
-        existing_data["data"]["raw_minutes"]["rohr_1"][str(minutes_elapsed)] += 1
+    if True:
+        #rohr 1:
+        if "rohr_1" not in existing_data["data"]["raw_minutes"]:
+            existing_data["data"]["raw_minutes"]["rohr_1"] = {}
 
-    elif data == "2":
-        existing_data["data"]["raw_minutes"]["rohr_2"][str(minutes_elapsed)] += 1
-  
-    
+        if str(minutes_elapsed-1) not in existing_data["data"]["raw_minutes"]["rohr_1"]:
+            if str(minutes_elapsed-3) in existing_data["data"]["raw_minutes"]["rohr_1"] and\
+                str(minutes_elapsed-2) not in existing_data["data"]["raw_minutes"]["rohr_1"]:
+                    existing_data["data"]["raw_minutes"]["rohr_1"][str(minutes_elapsed-2)] = 0
+                    existing_data["data"]["raw_minutes"]["rohr_2"][str(minutes_elapsed-2)] = 0
+
+            if str(minutes_elapsed-2) in existing_data["data"]["raw_minutes"]["rohr_1"]:
+                existing_data["data"]["raw_minutes"]["rohr_1"][str(minutes_elapsed-1)] = 0
+                existing_data["data"]["raw_minutes"]["rohr_2"][str(minutes_elapsed-1)] = 0
+            
+        #fills small holes in the data if necessary. So for example if There is a value 
+        #three minutes ago and in the current minute, it can be assumed, that the device 
+        # was working for the two empty minutes, so they are filled with 0 CPM
+            
+        if str(minutes_elapsed) not in existing_data["data"]["raw_minutes"]["rohr_1"]:
+            existing_data["data"]["raw_minutes"]["rohr_1"][str(minutes_elapsed)] = 0
+
+        if data == "1":
+            existing_data["data"]["raw_minutes"]["rohr_1"][str(minutes_elapsed)] += 1
+        
+
+        
+        #rohr 2:
+
+        if str(minutes_elapsed) not in existing_data["data"]["raw_minutes"]["rohr_2"]:
+            existing_data["data"]["raw_minutes"]["rohr_2"][str(minutes_elapsed)] = 0
+
+        if str(minutes_elapsed-1) not in existing_data["data"]["raw_minutes"]["rohr_2"]:
+            print("min -1 = None")
+            if str(minutes_elapsed-3) in existing_data["data"]["raw_minutes"]["rohr_2"] and\
+                str(minutes_elapsed-2) not in existing_data["data"]["raw_minutes"]["rohr_2"]:
+                    existing_data["data"]["raw_minutes"]["rohr_2"][str(minutes_elapsed-2)] = 0
+
+            if str(minutes_elapsed-2) in existing_data["data"]["raw_minutes"]["rohr_2"]:
+                existing_data["data"]["raw_minutes"]["rohr_2"][str(minutes_elapsed-1)] = 0
+            
+        #fills small holes in the data if necessary. So for example if There is a value 
+        #three minutes ago and in the current minute, it can be assumed, that the device 
+        # was working for the two empty minutes, so they are filled with 0 CPM
+
+        if "rohr_2" not in existing_data["data"]["raw_minutes"]:
+            existing_data["data"]["raw_minutes"]["rohr_2"] = {}    
+
+        if data == "2":
+            existing_data["data"]["raw_minutes"]["rohr_2"][str(minutes_elapsed)] += 1
+    #little bit of data processing
+        
     with open(data_file, "w") as file:
         json.dump(existing_data, file)
     
@@ -101,7 +137,9 @@ async def add_new_data(rohr: str):
 
 @app.get("/data")
 async def get_data():
-    return values,times,mins
+    with open(data_file,"r") as file:
+        json_data = json.load(file)
+    return json_data
 
 async def update_plots():
     start_time = time.time()
@@ -129,7 +167,7 @@ async def update_plots():
     plt.ylabel("Activity (CPM)")
     plt.legend(loc='upper right')
     plt.title("Last 60 minutes of Data")
-    plt.savefig("last_60_minutes.jpg")
+    plt.savefig("last_60_minutes.png")
     plt.clf()
     plt.close()
     end_time = time.time()
@@ -140,7 +178,7 @@ async def update_plots():
 @app.get("/last_hour")
 async def get_picture():
     await update_plots()
-    return responses.FileResponse("last_60_minutes.jpg")
+    return responses.FileResponse("last_60_minutes.png")
 
 @app.get("/status")
 async def status():

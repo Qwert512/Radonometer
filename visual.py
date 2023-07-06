@@ -61,7 +61,7 @@ async def update_plots():
     plt.ylabel("Activity (CPM)")
     plt.legend(loc='upper right')
     plt.title("Last 60 minutes of Data")
-    plt.savefig("last_60_minutes.jpg")
+    plt.savefig("last_60_minutes.png")
     plt.clf()
     plt.close()
     end_time = time.time()
@@ -72,7 +72,7 @@ async def update_plots():
 @app.get("/last_hour")
 async def get_picture():
     await update_plots()
-    return responses.FileResponse("last_60_minutes.jpg")
+    return responses.FileResponse("last_60_minutes.png")
 
 @app.get("/status")
 async def status():
