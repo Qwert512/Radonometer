@@ -104,35 +104,9 @@ def update_data(data:str, time_format="%Y-%m-%d %H:%M:%S"):
 
 @app.post("/new/{data}")
 async def add_new_data(data: str):
+    print("Received data: "+str(data)+" at "+str(time.time()))
     update_data(data)
     return {"message": "Data received and saved."}
-
-
-@app.post("/cpm/{rohr}")
-async def add_new_data(rohr: str):
-    file_path = "data.json"
-    if not os.path.exists(file_path):
-        with open(file_path, "w") as file:
-            file.write(default_json_data)
-    if os.stat(file_path).st_size == 0:
-        with open(file_path, "w") as file:
-            file.write(default_json_data)
-    
-    timestamp = time.time()
-    if times == []:
-        delta_to_last = 0.0
-        last_time = timestamp
-    else:
-        delta_to_last = last_time - timestamp
-        last_time = timestamp
-    for i in range(len(times)):
-        val = times[i]
-        val += delta_to_last
-        times[i] = round(val,2)
-    times.append(0)
-    mins.append(int(data))
-    #print(f"Received new data: {data} with delta time: {delta_to_last:.2f}")
-    return {"message": "Data received"}
 
 
 @app.get("/data")
