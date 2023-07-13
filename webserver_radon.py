@@ -1,12 +1,12 @@
 import time, math, statistics, os, json
 from datetime import datetime
 from typing import Dict
-import numpy as np, uvicorn
+import numpy as np, uvicorn, random
 import matplotlib.pyplot as plt
 from fastapi import FastAPI, responses
 from brokenaxes import brokenaxes
 
-version = "0.1.4" 
+version = "0.1.5" 
 app = FastAPI(
     title="Radonometer 9000",
     version=version,
@@ -129,10 +129,13 @@ async def return_plot(time_window_mins:int,x_width:float=6,y_height:float=4,mini
     with open("data.json","r") as file:
         data = json.load(file)["data"]
         file.close()
-    await plot(json_data=data,x_width=x_width,y_height=y_height,x_axis_mins=time_window_mins,minimum_x_len=2)
+    await plot(json_data=data,x_width=x_width,y_height=y_height,x_axis_mins=time_window_mins,minimum_x_len=minimum_x_len)
     return responses.FileResponse("last_x_mins.png")
 
 async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minimum_x_len:int=2):
+    if x_axis_mins == 0:
+        x_axis_mins = 2000000000
+    start_time_ms = math.floor(time.time()*1000)
     if y_height < 1:
         y_height = 1
     if x_width < 1:
@@ -163,9 +166,11 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
 
         previous_num = int(keys_1[0])
         offset = previous_num
+        if int(keys_1[0])+1<int(keys_1[1]):
+            offset -= int(keys_1[1]) - int(keys_1[0])
         for i in range(len(keys_1) - 1):
             if int(keys_1[i+1]) > int(keys_1[i]) + 1:
-                print("Minute "+str(keys_1[i])+" = minute "+str(int(keys_1[i])-offset)+" from start")
+                #print("Minute "+str(keys_1[i])+" = minute "+str(int(keys_1[i])-offset)+" from start")
                 old_tuple = jumps_1
                 new_tuple = old_tuple + ((previous_num-offset, int(keys_1[i])-offset),)
                 previous_num = int(keys_1[i+1])
@@ -223,14 +228,21 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
         val = int(val)
         val -= offset
         x_values.append(val)
-    print("Values on x axis: "+str(x_values))
-    print("jumps: "+str(jumps_1))
+    window_size = min(10, len(list(json_data["raw_minutes"]["rohr_1"].values())))  # Use a window size of 10 or the length of the data array, whichever is smaller
+    smoothed_data = np.convolve(list(json_data["raw_minutes"]["rohr_1"].values()), np.ones(window_size) / window_size, mode='same')
+    #print("Values on x axis: "+str(x_values))
+    #print("jumps: "+str(jumps_1))
     # Plot data on the broken axes
     
     ax.plot(x_values,
-            list(json_data["raw_minutes"]["rohr_1"].values()), 'b-',label="Geiger counter activity")
+            list(json_data["raw_minutes"]["rohr_1"].values()), 'c-',label="Geiger counter activity")
+    ax.plot(x_values,
+            smoothed_data, 'r-', label="Smoothed Geiger counter activity")
     ax.legend(loc='upper right')
-    plt.title("Last "+str(x_axis_mins)+" minutes of Data")
+    if x_axis_mins == 2000000000:
+        plt.title("All data")
+    else:
+        plt.title("Last "+str(x_axis_mins)+" minutes of data")
     ax.set_xlabel("Time (mins)")
     ax.set_ylabel("Activity (CPM)")
 
@@ -238,19 +250,23 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
     plt.savefig("last_x_mins.png")
     plt.clf()
     plt.close()
-
+    time_diff_ms = math.floor(time.time()*1000) - start_time_ms
+    print("Successfully updated all plots in "+str(time_diff_ms)+"ms")
 @app.get("/status")
 async def status():
     rad_status = 0
-    try:
-        avg = statistics.mean(mins)
-        if avg <= 15:
-            rad_status = 1
-        if avg > 15 and avg <= 30:
-            rad_status = 2
-        if avg > 30:
-            rad_status = 3
-    except:
-        pass
-    print(mins)
-    return {"status":str(rad_status)}
+    rad_status = random.randint(1,3)
+    # try:
+    #     avg = statistics.mean(mins)
+    #     if avg <= 15:
+    #         rad_status = 1
+    #     if avg > 15 and avg <= 30:
+    #         rad_status = 2
+    #     if avg > 30:
+    #         rad_status = 3
+    # except:
+    #     pass
+    messages = ["just chillin","*slightly* concerning","you are die!"]
+    message = messages[rad_status-1]
+
+    return {"status": str(rad_status),  "message":message}
