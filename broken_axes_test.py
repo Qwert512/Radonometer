@@ -44,7 +44,7 @@ test_json_data = {
     }
 }
 
-def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int):
+def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minimum_x_len:int=2):
     if y_height < 1:
         y_height = 1
     if x_width < 1:
@@ -59,73 +59,84 @@ def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int):
     last_key_2 = keys_2[len(keys_2)-1]
     first_key_2 = int(last_key_2) - x_axis_mins
 
-    
-    if first_key_1 <= 0:
-        first_key_1 = 0
-        #check if it neccesary to remove values based on the provided time window
-    else:
-        for i in reversed(keys_1):
-            i = int(i)
-        #iterate through the time values in minutes
-            if i < first_key_1:
-                json_data["raw_minutes"]["rohr_1"].pop(str(i))
-                keys_1.remove(str(i))
-        #then pop all the values that do not fit in the specified time window
+    #processing for "Rohr_1"
+    if True:
+        if first_key_1 <= 0:
+            first_key_1 = 0
+            #check if it neccesary to remove values based on the provided time window
+        else:
+            for i in reversed(keys_1):
+                i = int(i)
+            #iterate through the time values in minutes
+                if i < first_key_1:
+                    json_data["raw_minutes"]["rohr_1"].pop(str(i))
+                    keys_1.remove(str(i))
+            #then pop all the values that do not fit in the specified time window
 
-    if first_key_2 <= 0:
-        first_key_2 = 0
-        #see for the "rohr_1" code block
-    else:
-        for i in reversed(keys_2):
-            i = int(i)
+        previous_num = first_key_1
+        for i in range(len(keys_1) - 1):
+            if int(keys_1[i+1]) > int(keys_1[i]) + 1:
+                old_tuple = jumps_1
+                new_tuple = old_tuple + ((previous_num, int(keys_1[i])),)
+                previous_num = int(keys_1[i+1])
+                jumps_1 = new_tuple
+        old_tuple = jumps_1
+        jumps_1 = old_tuple + ((previous_num, int(keys_1[i])),)
+        jumps_1 = [(a, b) for (a, b) in jumps_1 if abs(a - b) >= minimum_x_len]
 
-            if i < first_key_2:
-                json_data["raw_minutes"]["rohr_2"].pop(str(i))
-                keys_2.remove(str(i))
+        if int(keys_1[i]) == int(keys_1[i-1])+1:
+            modified_tuple = [*jumps_1[-1][:-1], jumps_1[-1][-1] + 1]
+            jumps_1 = tuple([list(t) if t != jumps_1[-1] else modified_tuple for t in jumps_1])
 
+        #this is pretty complicated, just ignore it. It does some black magic and then the data is 
+        #sorted, crisp, cleaned and stuffed into the right output format
 
-    previous_num = first_key_1
-    for i in range(len(keys_1) - 1):
-        if int(keys_1[i+1]) > int(keys_1[i]) + 1:
-            old_tuple = jumps_1
-            new_tuple = old_tuple + ((previous_num, int(keys_1[i])),)
-            previous_num = int(keys_1[i+1])
-            jumps_1 = new_tuple
-    old_tuple = jumps_1
-    jumps_1 = old_tuple + ((previous_num, int(keys_1[i])),)
-    jumps_1 = [(a, b) for (a, b) in jumps_1 if abs(a - b) >= minimum_x_len]
+    #processing for "Rohr_2"
+    if True:
 
-    if int(keys_1[i]) == int(keys_1[i-1])+1:
-        modified_tuple = [*jumps_1[-1][:-1], jumps_1[-1][-1] + 1]
-        jumps_1 = tuple([list(t) if t != jumps_1[-1] else modified_tuple for t in jumps_1])
+        if first_key_2 <= 0:
+            first_key_2 = 0
+            #see for the "rohr_1" code block
+        else:
+            for i in reversed(keys_2):
+                i = int(i)
 
-    #this is pretty complicated, just ignore it. It does some black magic and then the data is 
-    #sorted, crisp, cleaned and stuffed into the right output format
-
-    previous_num = first_key_2
-    for i in range(len(keys_2) - 1):
-        if int(keys_2[i+1]) > int(keys_2[i]) + 1:
-            old_tuple = jumps_2
-            new_tuple = old_tuple + ((previous_num, int(keys_2[i])),)
-            previous_num = int(keys_2[i+1])
-            jumps_2 = new_tuple
-    old_tuple = jumps_2
-    jumps_2 = old_tuple + ((previous_num, int(keys_2[i])),)
-    jumps_2 = [(a, b) for (a, b) in jumps_2 if abs(a - b) >= minimum_x_len]
+                if i < first_key_2:
+                    json_data["raw_minutes"]["rohr_2"].pop(str(i))
+                    keys_2.remove(str(i))
 
 
-    print(jumps_1)
-    print(jumps_2)
+        previous_num = first_key_2
+        for i in range(len(keys_2) - 1):
+            if int(keys_2[i+1]) > int(keys_2[i]) + 1:
+                old_tuple = jumps_2
+                new_tuple = old_tuple + ((previous_num, int(keys_2[i])),)
+                previous_num = int(keys_2[i+1])
+                jumps_2 = new_tuple
+        old_tuple = jumps_2
+        jumps_2 = old_tuple + ((previous_num, int(keys_2[i])),)
+        jumps_2 = [(a, b) for (a, b) in jumps_2 if abs(a - b) >= minimum_x_len]
+
+        if int(keys_2[i]) == int(keys_2[i-1])+1:
+            modified_tuple = [*jumps_2[-1][:-1], jumps_2[-1][-1] + 1]
+            jumps_2 = tuple([list(t) if t != jumps_2[-1] else modified_tuple for t in jumps_2])
 
     # Create a figure and axes
 
-    plt.figure(figsize=(x_width, y_height))
+    plt.figure(figsize=(x_width, y_height),dpi=120)
     ax = brokenaxes(xlims=jumps_1, hspace=0.05)
 
     # Plot data on the broken axes
     ax.plot([int(x) for x in list(json_data["raw_minutes"]["rohr_1"].keys())],
-            list(json_data["raw_minutes"]["rohr_1"].values()), 'b-')
+            list(json_data["raw_minutes"]["rohr_1"].values()), 'b-',label="Geiger counter activity")
+    ax.legend(loc='upper right')
+    plt.title("Last "+str(x_axis_mins)+" minutes of Data")
+    ax.set_xlabel("Time (mins)")
+    ax.set_ylabel("Activity (CPM)")
+
 
     # Show the plot
-    plt.show()
-plot(test_json_data,1,1,900)
+    plt.savefig("last_x_mins.png")
+    plt.clf()
+    plt.close()
+plot(test_json_data,12,8,890,2)
