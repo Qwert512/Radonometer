@@ -269,4 +269,4 @@ async def status():
     messages = ["just chillin","*slightly* concerning","you are die!"]
     message = messages[rad_status-1]
 
-    return {"status": str(rad_status),  "message":message}
+    return responses.JSONResponse(content={"status": str(rad_status),  "message":message},headers={"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Content-Type": "application/json"})
