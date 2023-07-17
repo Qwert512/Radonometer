@@ -234,15 +234,14 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
     #print("jumps: "+str(jumps_1))
     # Plot data on the broken axes
     
+    plot_title = get_title(x_axis_mins)
+        
     ax.plot(x_values,
             list(json_data["raw_minutes"]["rohr_1"].values()), 'c-',label="Geiger counter activity")
     ax.plot(x_values,
             smoothed_data, 'r-', label="Smoothed Geiger counter activity")
     ax.legend(loc='upper right')
-    if x_axis_mins == 2000000000:
-        plt.title("All data")
-    else:
-        plt.title("Last "+str(x_axis_mins)+" minutes of data")
+    plt.title(plot_title)
     ax.set_xlabel("Time (mins)")
     ax.set_ylabel("Activity (CPM)")
 
@@ -270,3 +269,43 @@ async def status():
     message = messages[rad_status-1]
 
     return responses.JSONResponse(content={"status": str(rad_status),  "message":message},headers={"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Content-Type": "application/json"})
+
+async def get_title(x_axis_mins:int):
+    #1h = 60min, 1d = 1440min, 1w = 10080min, 1M = 43200min, 1y = 525600min
+    plot_title = str()
+    if x_axis_mins < 60:
+        plot_title = "Last "+str(x_axis_mins)+" minutes of data"
+    elif x_axis_mins == 60:
+        plot_title = "Last hour of data"
+
+    elif x_axis_mins > 60 and x_axis_mins < 1440:
+        hours = math.floor(x_axis_mins/60,2)
+        plot_title = "Last "+str(hours)+" hours of data"
+    elif x_axis_mins == 1440:
+        plot_title = "Last day of data"
+
+    elif x_axis_mins > 1440 and x_axis_mins <10080:
+        days = math.floor(x_axis_mins/1440,2)
+        plot_title = "Last "+str(days)+" days of data"
+    elif x_axis_mins == 10080:
+        plot_title = "Last week of data"
+
+    elif x_axis_mins > 10080 and x_axis_mins < 43200:
+        weeks = math.floor(x_axis_mins/10080,2)
+        plot_title = "Last "+str(weeks)+" weeks of data"
+    elif x_axis_mins == 43200:
+        plot_title = "Last month of data"
+
+    elif x_axis_mins > 43200 and x_axis_mins < 525600:
+        months = math.floor(x_axis_mins/43200,2)
+        plot_title = "Last "+str(months)+" months of data"
+    elif x_axis_mins == 525600:
+        plot_title = "Last year of data"
+
+    elif x_axis_mins > 525600:
+        years = math.floor(x_axis_mins/525600,2)
+        plot_title = "Last "+str(years)+" years of data"
+
+    elif x_axis_mins == 2000000000:
+        plot_title = "All data"
+    return(plot_title)
