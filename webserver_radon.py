@@ -3,11 +3,14 @@ from datetime import datetime
 from typing import Dict
 import numpy as np, uvicorn, random
 import matplotlib.pyplot as plt
-from fastapi import FastAPI, responses
-from brokenaxes import brokenaxes
+from fastapi_offline import FastAPIOffline
+from fastapi import responses
+from brokenaxes import brokenaxes#
+
+
 
 version = "0.1.5" 
-app = FastAPI(
+app = FastAPIOffline(
     title="Radonometer 9000",
     version=version,
     description="Backend der Seminararbeit 'Radondetektor' von Qwert512"
@@ -234,7 +237,7 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
     #print("jumps: "+str(jumps_1))
     # Plot data on the broken axes
     
-    plot_title = get_title(x_axis_mins)
+    plot_title = await get_title(x_axis_mins)
         
     ax.plot(x_values,
             list(json_data["raw_minutes"]["rohr_1"].values()), 'c-',label="Geiger counter activity")
@@ -279,31 +282,31 @@ async def get_title(x_axis_mins:int):
         plot_title = "Last hour of data"
 
     elif x_axis_mins > 60 and x_axis_mins < 1440:
-        hours = math.floor(x_axis_mins/60,2)
+        hours = round(x_axis_mins/60,2)
         plot_title = "Last "+str(hours)+" hours of data"
     elif x_axis_mins == 1440:
         plot_title = "Last day of data"
 
     elif x_axis_mins > 1440 and x_axis_mins <10080:
-        days = math.floor(x_axis_mins/1440,2)
+        days = round(x_axis_mins/1440,2)
         plot_title = "Last "+str(days)+" days of data"
     elif x_axis_mins == 10080:
         plot_title = "Last week of data"
 
     elif x_axis_mins > 10080 and x_axis_mins < 43200:
-        weeks = math.floor(x_axis_mins/10080,2)
+        weeks = round(x_axis_mins/10080,2)
         plot_title = "Last "+str(weeks)+" weeks of data"
     elif x_axis_mins == 43200:
         plot_title = "Last month of data"
 
     elif x_axis_mins > 43200 and x_axis_mins < 525600:
-        months = math.floor(x_axis_mins/43200,2)
+        months = round(x_axis_mins/43200,2)
         plot_title = "Last "+str(months)+" months of data"
     elif x_axis_mins == 525600:
         plot_title = "Last year of data"
 
     elif x_axis_mins > 525600:
-        years = math.floor(x_axis_mins/525600,2)
+        years = round(x_axis_mins/525600,2)
         plot_title = "Last "+str(years)+" years of data"
 
     elif x_axis_mins == 2000000000:
