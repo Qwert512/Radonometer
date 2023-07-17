@@ -9,7 +9,7 @@ from brokenaxes import brokenaxes#
 
 
 
-version = "0.1.5" 
+version = "0.1.6" 
 app = FastAPIOffline(
     title="Radonometer 9000",
     version=version,
@@ -191,36 +191,7 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
 
     # ?processing for "Rohr_2"
     # !Commented out because a lot is being done on the rohr 1 part, and im too lazy to update dis
-    # if True:
 
-    #     if first_key_2 <= 0:
-    #         first_key_2 = 0
-    #         #see for the "rohr_1" code block
-    #     else:
-    #         for i in reversed(keys_2):
-    #             i = int(i)
-
-    #             if i < first_key_2:
-    #                 json_data["raw_minutes"]["rohr_2"].pop(str(i))
-    #                 keys_2.remove(str(i))
-
-
-    #     previous_num = first_key_2
-    #     for i in range(len(keys_2) - 1):
-    #         if int(keys_2[i+1]) > int(keys_2[i]) + 1:
-    #             old_tuple = jumps_2
-    #             new_tuple = old_tuple + ((previous_num, int(keys_2[i])),)
-    #             previous_num = int(keys_2[i+1])
-    #             jumps_2 = new_tuple
-    #     old_tuple = jumps_2
-    #     jumps_2 = old_tuple + ((previous_num, int(keys_2[i])),)
-    #     jumps_2 = [(a, b) for (a, b) in jumps_2 if abs(a - b) >= minimum_x_len]
-
-    #     if int(keys_2[i]) == int(keys_2[i-1])+1:
-    #         modified_tuple = [*jumps_2[-1][:-1], jumps_2[-1][-1] + 1]
-    #         jumps_2 = tuple([list(t) if t != jumps_2[-1] else modified_tuple for t in jumps_2])
-
-    # Create a figure and axes
 
     plt.figure(figsize=(x_width, y_height),dpi=120)
     ax = brokenaxes(xlims=jumps_1, hspace=0.05)
@@ -233,13 +204,9 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
         x_values.append(val)
     window_size = min(10, len(list(json_data["raw_minutes"]["rohr_1"].values())))  # Use a window size of 10 or the length of the data array, whichever is smaller
     smoothed_data = np.convolve(list(json_data["raw_minutes"]["rohr_1"].values()), np.ones(window_size) / window_size, mode='same')
-    #print("Values on x axis: "+str(x_values))
-    #print("jumps: "+str(jumps_1))
     # Plot data on the broken axes
-    
-    plot_title = await get_title(x_axis_mins)
-    
-    x_axis_values, unit = await label_x_axis(x_values=x_values)
+        
+    x_axis_values, unit, plot_title, div_val = await label_x_axis_and_title(x_values=x_values)
         
     ax.plot(x_axis_values,
             list(json_data["raw_minutes"]["rohr_1"].values()), 'c-',label="Geiger counter activity")
@@ -247,7 +214,7 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
             smoothed_data, 'r-', label="Smoothed Geiger counter activity")
     ax.legend(loc='upper right')
     plt.title(plot_title)
-    ax.set_xlabel("Time (mins)")
+    ax.set_xlabel("Time ("+unit+")")
     ax.set_ylabel("Activity (CPM)")
 
     # Save the plot
@@ -322,29 +289,25 @@ async def label_x_axis_and_title(x_values:list):
     units = ["minutes","hours","days","weeks","months", "years"]
     breakpoints = [240,4320,30240,120960,1576800]
     # = [4h, 72h, 21d, 12w, 36m]
-    dividing_values = [60,1440,10080,43200,525600]
+    dividing_values = [1,60,1440,10080,43200,525600]
     # 1h = 60min, 1d = 1440min, 1w = 10080min, 1M = 43200min, 1y = 525600min
     last_val = np_x_values[-1]
-    if last_val < 240:
-        unit = "minutes"
-        final_x_values = list(np_x_values)
-    elif last_val >= 240:
-        unit = "hours"
-        np_x_values = np_x_values / 60
-        final_x_values = list(np_x_values)
-    elif last_val >= 4320:
-        unit = "days"
-        np_x_values = np_x_values / 1440
-        final_x_values = list(np_x_values)
-    elif last_val >= 30240:
-        unit = "weeks"
-        np_x_values = np_x_values / 10080
-        final_x_values = list(np_x_values)
-    elif last_val >= 120960:
-        unit = "months"
-        np_x_values = np_x_values / 43200
-        final_x_values = list(np_x_values)
-    elif last_val >= 1576800:
-        unit = "years"
-        np_x_values = np_x_values / 60
-        final_x_values = list(np_x_values)
+
+    div_factor = dividing_values[0]
+    unit = units["minutes"]
+    final_x_values = list(np_x_values)
+
+    for i in reversed(range(6)):
+        if last_val >= breakpoints[i-1]:
+            unit = units[i]
+            np_x_values = np_x_values/dividing_values[i]
+            final_x_values = list(np_x_values)
+            print(final_x_values)
+            div_factor =dividing_values[i]
+            break
+    
+    
+    title_val = round(last_val/div_factor,2)
+    title = "Last "+str(title_val)+" "+unit+" of data"
+
+    return(final_x_values,unit,title,div_factor)
