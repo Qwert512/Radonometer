@@ -238,10 +238,12 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
     # Plot data on the broken axes
     
     plot_title = await get_title(x_axis_mins)
+    
+    x_axis_values, unit = await label_x_axis(x_values=x_values)
         
-    ax.plot(x_values,
+    ax.plot(x_axis_values,
             list(json_data["raw_minutes"]["rohr_1"].values()), 'c-',label="Geiger counter activity")
-    ax.plot(x_values,
+    ax.plot(x_axis_values,
             smoothed_data, 'r-', label="Smoothed Geiger counter activity")
     ax.legend(loc='upper right')
     plt.title(plot_title)
@@ -254,6 +256,7 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
     plt.close()
     time_diff_ms = math.floor(time.time()*1000) - start_time_ms
     print("Successfully updated all plots in "+str(time_diff_ms)+"ms")
+
 @app.get("/status")
 async def status():
     rad_status = 0
@@ -274,7 +277,7 @@ async def status():
     return responses.JSONResponse(content={"status": str(rad_status),  "message":message},headers={"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Content-Type": "application/json"})
 
 async def get_title(x_axis_mins:int):
-    #1h = 60min, 1d = 1440min, 1w = 10080min, 1M = 43200min, 1y = 525600min
+    
     plot_title = str()
     if x_axis_mins < 60:
         plot_title = "Last "+str(x_axis_mins)+" minutes of data"
@@ -312,3 +315,36 @@ async def get_title(x_axis_mins:int):
     elif x_axis_mins == 2000000000:
         plot_title = "All data"
     return(plot_title)
+
+async def label_x_axis_and_title(x_values:list):
+    np_x_values = np.array(x_values)
+
+    units = ["minutes","hours","days","weeks","months", "years"]
+    breakpoints = [240,4320,30240,120960,1576800]
+    # = [4h, 72h, 21d, 12w, 36m]
+    dividing_values = [60,1440,10080,43200,525600]
+    # 1h = 60min, 1d = 1440min, 1w = 10080min, 1M = 43200min, 1y = 525600min
+    last_val = np_x_values[-1]
+    if last_val < 240:
+        unit = "minutes"
+        final_x_values = list(np_x_values)
+    elif last_val >= 240:
+        unit = "hours"
+        np_x_values = np_x_values / 60
+        final_x_values = list(np_x_values)
+    elif last_val >= 4320:
+        unit = "days"
+        np_x_values = np_x_values / 1440
+        final_x_values = list(np_x_values)
+    elif last_val >= 30240:
+        unit = "weeks"
+        np_x_values = np_x_values / 10080
+        final_x_values = list(np_x_values)
+    elif last_val >= 120960:
+        unit = "months"
+        np_x_values = np_x_values / 43200
+        final_x_values = list(np_x_values)
+    elif last_val >= 1576800:
+        unit = "years"
+        np_x_values = np_x_values / 60
+        final_x_values = list(np_x_values)
