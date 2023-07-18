@@ -9,7 +9,7 @@ from brokenaxes import brokenaxes#
 
 
 
-version = "0.1.6" 
+version = "0.1.7" 
 app = FastAPIOffline(
     title="Radonometer 9000",
     version=version,
@@ -192,22 +192,27 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
     # ?processing for "Rohr_2"
     # !Commented out because a lot is being done on the rohr 1 part, and im too lazy to update dis
 
-
-    plt.figure(figsize=(x_width, y_height),dpi=120)
-    ax = brokenaxes(xlims=jumps_1, hspace=0.05)
-
-    # convert all  minute values from str to int and substract the start value from them, so the diagram starts at 0
     x_values = []
     for val in list(json_data["raw_minutes"]["rohr_1"].keys()):
         val = int(val)
         val -= offset
         x_values.append(val)
+
+    x_axis_values, unit, plot_title, div_val = await label_x_axis_and_title(x_values=x_values)
+
+
+    jumps_1 = tuple([list(map(lambda val: val / div_val, sublist)) for sublist in jumps_1])
+
+    plt.figure(figsize=(x_width, y_height),dpi=120)
+    ax = brokenaxes(xlims=jumps_1, hspace=0.05)
+
+    # convert all  minute values from str to int and substract the start value from them, so the diagram starts at 0
+    
     window_size = min(10, len(list(json_data["raw_minutes"]["rohr_1"].values())))  # Use a window size of 10 or the length of the data array, whichever is smaller
     smoothed_data = np.convolve(list(json_data["raw_minutes"]["rohr_1"].values()), np.ones(window_size) / window_size, mode='same')
     # Plot data on the broken axes
         
-    x_axis_values, unit, plot_title, div_val = await label_x_axis_and_title(x_values=x_values)
-        
+    print(jumps_1)
     ax.plot(x_axis_values,
             list(json_data["raw_minutes"]["rohr_1"].values()), 'c-',label="Geiger counter activity")
     ax.plot(x_axis_values,
@@ -243,46 +248,6 @@ async def status():
 
     return responses.JSONResponse(content={"status": str(rad_status),  "message":message},headers={"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Content-Type": "application/json"})
 
-async def get_title(x_axis_mins:int):
-    
-    plot_title = str()
-    if x_axis_mins < 60:
-        plot_title = "Last "+str(x_axis_mins)+" minutes of data"
-    elif x_axis_mins == 60:
-        plot_title = "Last hour of data"
-
-    elif x_axis_mins > 60 and x_axis_mins < 1440:
-        hours = round(x_axis_mins/60,2)
-        plot_title = "Last "+str(hours)+" hours of data"
-    elif x_axis_mins == 1440:
-        plot_title = "Last day of data"
-
-    elif x_axis_mins > 1440 and x_axis_mins <10080:
-        days = round(x_axis_mins/1440,2)
-        plot_title = "Last "+str(days)+" days of data"
-    elif x_axis_mins == 10080:
-        plot_title = "Last week of data"
-
-    elif x_axis_mins > 10080 and x_axis_mins < 43200:
-        weeks = round(x_axis_mins/10080,2)
-        plot_title = "Last "+str(weeks)+" weeks of data"
-    elif x_axis_mins == 43200:
-        plot_title = "Last month of data"
-
-    elif x_axis_mins > 43200 and x_axis_mins < 525600:
-        months = round(x_axis_mins/43200,2)
-        plot_title = "Last "+str(months)+" months of data"
-    elif x_axis_mins == 525600:
-        plot_title = "Last year of data"
-
-    elif x_axis_mins > 525600:
-        years = round(x_axis_mins/525600,2)
-        plot_title = "Last "+str(years)+" years of data"
-
-    elif x_axis_mins == 2000000000:
-        plot_title = "All data"
-    return(plot_title)
-
 async def label_x_axis_and_title(x_values:list):
     np_x_values = np.array(x_values)
 
@@ -294,7 +259,7 @@ async def label_x_axis_and_title(x_values:list):
     last_val = np_x_values[-1]
 
     div_factor = dividing_values[0]
-    unit = units["minutes"]
+    unit = units[0]
     final_x_values = list(np_x_values)
 
     for i in reversed(range(6)):
@@ -302,7 +267,6 @@ async def label_x_axis_and_title(x_values:list):
             unit = units[i]
             np_x_values = np_x_values/dividing_values[i]
             final_x_values = list(np_x_values)
-            print(final_x_values)
             div_factor =dividing_values[i]
             break
     
