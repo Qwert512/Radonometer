@@ -5,7 +5,8 @@ import numpy as np, uvicorn, random
 import matplotlib.pyplot as plt
 from fastapi_offline import FastAPIOffline
 from fastapi import responses
-from brokenaxes import brokenaxes#
+from brokenaxes import brokenaxes
+from cycler import cycler
 
 
 
@@ -29,6 +30,38 @@ default_json_data = {
             }
 }
 
+dark_mode_color = '#282828'
+
+mpl_dark = {
+            'axes.facecolor'    : dark_mode_color,
+            'axes.labelcolor'   : 'white',
+            'axes.edgecolor'    : 'white',
+            'figure.facecolor'  : dark_mode_color,
+            'figure.edgecolor'  : '#808080',
+            'savefig.facecolor' : dark_mode_color,
+            'savefig.edgecolor' : dark_mode_color,
+            'xtick.color'       : 'white',
+            'ytick.color'       : 'white',
+            'text.color'        : 'white',
+            'grid.color'        : '#CCCCCC',
+            'axes.prop_cycle'   : cycler('color', ['r', 'g', 'c', 'm', 'y', 'w'])
+            }
+
+mpl_light = {
+            'axes.facecolor'    : 'white',
+            'axes.labelcolor'   : 'black',
+            'axes.edgecolor'    : 'black',
+            'figure.facecolor'  : 'white',
+            'figure.edgecolor'  : '#808080',
+            'savefig.facecolor' : 'white',
+            'savefig.edgecolor' : 'white',
+            'xtick.color'       : 'black',
+            'ytick.color'       : 'black',
+            'text.color'        : 'black',
+            'grid.color'        : '#222222',
+            'axes.prop_cycle'   : cycler('color', ['r', 'b', 'c', 'm', 'k'])
+            }
+
 data_file = "data.json"
 
 if __name__ == "__main__":
@@ -38,7 +71,7 @@ if __name__ == "__main__":
 def root():
     return{"version":version}
 
-def update_data(data:str, time_format="%Y-%m-%d %H:%M:%S"):
+def update_data(data:str):
     global start_time
     if not os.path.exists(data_file):
         with open(data_file, "w") as file:
@@ -46,8 +79,6 @@ def update_data(data:str, time_format="%Y-%m-%d %H:%M:%S"):
     if os.stat(data_file).st_size == 0:
         with open(data_file, "w") as file:
             file.write(json.dumps(default_json_data))
-
-    current_time = datetime.now().strftime(time_format)
     
     with open(data_file, "r") as file:
         try:
@@ -128,14 +159,14 @@ async def get_data():
     return json_data
 
 @app.get("/visualize_data")
-async def return_plot(time_window_mins:int,x_width:float=6,y_height:float=4,minimum_x_len:int=2):
+async def return_plot(time_window_mins:int,x_width:float=6,y_height:float=4,minimum_x_len:int=2,dark_mode:bool=False):
     with open("data.json","r") as file:
         data = json.load(file)["data"]
         file.close()
-    await plot(json_data=data,x_width=x_width,y_height=y_height,x_axis_mins=time_window_mins,minimum_x_len=minimum_x_len)
+    await plot(json_data=data,x_width=x_width,y_height=y_height,x_axis_mins=time_window_mins,minimum_x_len=minimum_x_len,dark_mode=dark_mode)
     return responses.FileResponse("last_x_mins.png")
 
-async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minimum_x_len:int=2):
+async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minimum_x_len:int=2,dark_mode:bool=False):
     if x_axis_mins == 0:
         x_axis_mins = 2000000000
     start_time_ms = math.floor(time.time()*1000)
@@ -169,6 +200,7 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
 
         previous_num = int(keys_1[0])
         offset = previous_num
+        print(keys_1)
         if int(keys_1[0])+1<int(keys_1[1]):
             offset -= int(keys_1[1]) - int(keys_1[0])
         for i in range(len(keys_1) - 1):
@@ -181,10 +213,13 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
         old_tuple = jumps_1
         jumps_1 = old_tuple + ((previous_num-offset, int(keys_1[i])-offset),)
         jumps_1 = [(a, b) for (a, b) in jumps_1 if abs(a - b) >= minimum_x_len]
-
-        if int(keys_1[i]) == int(keys_1[i-1])+1:
-            modified_tuple = [*jumps_1[-1][:-1], jumps_1[-1][-1] + 1]
-            jumps_1 = tuple([list(t) if t != jumps_1[-1] else modified_tuple for t in jumps_1])
+        try:
+            if int(keys_1[i]) == int(keys_1[i-1])+1:
+                modified_tuple = [*jumps_1[-1][:-1], jumps_1[-1][-1] + 1]
+                jumps_1 = tuple([list(t) if t != jumps_1[-1] else modified_tuple for t in jumps_1])
+                #Checks if the last value is a continuation of the data, if yes changes jumps1 accordingly
+        except:
+            print("An error occured at the end of the data processing of Rohr_1 data")
 
         #this is pretty complicated, just ignore it. It does some black magic and then the data is 
         #sorted, crisp, cleaned and stuffed into the right output format
@@ -203,8 +238,6 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
 
     jumps_1 = tuple([list(map(lambda val: val / div_val, sublist)) for sublist in jumps_1])
 
-    plt.figure(figsize=(x_width, y_height),dpi=120)
-    ax = brokenaxes(xlims=jumps_1, hspace=0.05)
 
     # convert all  minute values from str to int and substract the start value from them, so the diagram starts at 0
     
@@ -213,15 +246,44 @@ async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minim
     # Plot data on the broken axes
         
     print(jumps_1)
-    ax.plot(x_axis_values,
-            list(json_data["raw_minutes"]["rohr_1"].values()), 'c-',label="Geiger counter activity")
-    ax.plot(x_axis_values,
-            smoothed_data, 'r-', label="Smoothed Geiger counter activity")
-    ax.legend(loc='upper right')
-    plt.title(plot_title)
-    ax.set_xlabel("Time ("+unit+")")
-    ax.set_ylabel("Activity (CPM)")
+    
+    if dark_mode == True:
+        with plt.style.context(mpl_dark):
+            plt.figure(figsize=(x_width, y_height),dpi=120)
 
+            if len(jumps_1) != 0:
+                ax = brokenaxes(xlims=jumps_1, hspace=0.05)
+
+                ax.plot(x_axis_values,
+                        list(json_data["raw_minutes"]["rohr_1"].values()), 'c-',label="Geiger counter activity")
+                ax.plot(x_axis_values,
+                        smoothed_data, 'r-', label="Smoothed Geiger counter activity")
+            else:
+                ax = brokenaxes(hspace=0.05)
+                print("Plotting NO data")
+            ax.set_xlabel("Time ("+unit+")")
+            ax.set_ylabel("Activity (CPM)")
+            ax.legend(loc='upper right')
+            plt.title(plot_title)
+
+    else:
+        with plt.style.context(mpl_light):
+            plt.figure(figsize=(x_width, y_height),dpi=120)
+            if len(jumps_1) != 0:
+                ax = brokenaxes(xlims=jumps_1, hspace=0.05)
+
+                ax.plot(x_axis_values,
+                        list(json_data["raw_minutes"]["rohr_1"].values()), 'c-',label="Geiger counter activity")
+                ax.plot(x_axis_values,
+                        smoothed_data, 'r-', label="Smoothed Geiger counter activity")
+            else:
+                ax = brokenaxes(hspace=0.05)
+                print("Plotting NO data")
+            ax.set_xlabel("Time ("+unit+")")
+            ax.set_ylabel("Activity (CPM)")
+            ax.legend(loc='upper right')
+            plt.title(plot_title)
+    
     # Save the plot
     plt.savefig("last_x_mins.png")
     plt.clf()
