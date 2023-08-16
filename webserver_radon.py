@@ -7,10 +7,11 @@ from fastapi_offline import FastAPIOffline
 from fastapi import responses
 from brokenaxes import brokenaxes
 from cycler import cycler
+from render import render
+from process_data import plot
 
 
-
-version = "0.1.7" 
+version = "0.1.8" 
 app = FastAPIOffline(
     title="Radonometer 9000",
     version=version,
@@ -30,37 +31,6 @@ default_json_data = {
             }
 }
 
-dark_mode_color = '#282828'
-
-mpl_dark = {
-            'axes.facecolor'    : dark_mode_color,
-            'axes.labelcolor'   : 'white',
-            'axes.edgecolor'    : 'white',
-            'figure.facecolor'  : dark_mode_color,
-            'figure.edgecolor'  : '#808080',
-            'savefig.facecolor' : dark_mode_color,
-            'savefig.edgecolor' : dark_mode_color,
-            'xtick.color'       : 'white',
-            'ytick.color'       : 'white',
-            'text.color'        : 'white',
-            'grid.color'        : '#CCCCCC',
-            'axes.prop_cycle'   : cycler('color', ['r', 'g', 'c', 'm', 'y', 'w'])
-            }
-
-mpl_light = {
-            'axes.facecolor'    : 'white',
-            'axes.labelcolor'   : 'black',
-            'axes.edgecolor'    : 'black',
-            'figure.facecolor'  : 'white',
-            'figure.edgecolor'  : '#808080',
-            'savefig.facecolor' : 'white',
-            'savefig.edgecolor' : 'white',
-            'xtick.color'       : 'black',
-            'ytick.color'       : 'black',
-            'text.color'        : 'black',
-            'grid.color'        : '#222222',
-            'axes.prop_cycle'   : cycler('color', ['r', 'b', 'c', 'm', 'k'])
-            }
 
 data_file = "data.json"
 
@@ -160,136 +130,13 @@ async def get_data():
 
 @app.get("/visualize_data")
 async def return_plot(time_window_mins:int,x_width:float=6,y_height:float=4,minimum_x_len:int=2,dark_mode:bool=False):
+    start_time_ms = math.floor(time.time()*1000)
     with open("data.json","r") as file:
         data = json.load(file)["data"]
         file.close()
-    await plot(json_data=data,x_width=x_width,y_height=y_height,x_axis_mins=time_window_mins,minimum_x_len=minimum_x_len,dark_mode=dark_mode)
+    await plot(json_data=data,x_width=x_width,y_height=y_height,x_axis_mins=time_window_mins,minimum_x_len=minimum_x_len,dark_mode=dark_mode,start_time_ms=start_time_ms)
     return responses.FileResponse("last_x_mins.png")
-
-async def plot(json_data:dict,x_width:float,y_height:float,x_axis_mins:int,minimum_x_len:int=2,dark_mode:bool=False):
-    if x_axis_mins == 0:
-        x_axis_mins = 2000000000
-    start_time_ms = math.floor(time.time()*1000)
-    if y_height < 1:
-        y_height = 1
-    if x_width < 1:
-        x_width = 1
-    #define some variables and fetch some basic data
-    jumps_1 = ()
-    jumps_2 = ()
-    keys_1 = list(json_data["raw_minutes"]["rohr_1"].keys())
-    last_key_1 = keys_1[len(keys_1)-1]
-    first_key_1 = int(last_key_1) - x_axis_mins
-    keys_2 = list(json_data["raw_minutes"]["rohr_2"].keys())
-    last_key_2 = keys_2[len(keys_2)-1]
-    first_key_2 = int(last_key_2) - x_axis_mins
-
-    #processing for "Rohr_1"
-    if True:
-        if first_key_1 <= 0:
-            first_key_1 = 0
-            #check if it neccesary to remove values based on the provided time window
-        else:
-            for i in reversed(keys_1):
-                i = int(i)
-            #iterate through the time values in minutes
-                if i < first_key_1:
-                    json_data["raw_minutes"]["rohr_1"].pop(str(i))
-                    keys_1.remove(str(i))
-            #then pop all the values that do not fit in the specified time window
-
-        previous_num = int(keys_1[0])
-        offset = previous_num
-        print(keys_1)
-        if int(keys_1[0])+1<int(keys_1[1]):
-            offset -= int(keys_1[1]) - int(keys_1[0])
-        for i in range(len(keys_1) - 1):
-            if int(keys_1[i+1]) > int(keys_1[i]) + 1:
-                #print("Minute "+str(keys_1[i])+" = minute "+str(int(keys_1[i])-offset)+" from start")
-                old_tuple = jumps_1
-                new_tuple = old_tuple + ((previous_num-offset, int(keys_1[i])-offset),)
-                previous_num = int(keys_1[i+1])
-                jumps_1 = new_tuple
-        old_tuple = jumps_1
-        jumps_1 = old_tuple + ((previous_num-offset, int(keys_1[i])-offset),)
-        jumps_1 = [(a, b) for (a, b) in jumps_1 if abs(a - b) >= minimum_x_len]
-        try:
-            if int(keys_1[i]) == int(keys_1[i-1])+1:
-                modified_tuple = [*jumps_1[-1][:-1], jumps_1[-1][-1] + 1]
-                jumps_1 = tuple([list(t) if t != jumps_1[-1] else modified_tuple for t in jumps_1])
-                #Checks if the last value is a continuation of the data, if yes changes jumps1 accordingly
-        except:
-            print("An error occured at the end of the data processing of Rohr_1 data")
-
-        #this is pretty complicated, just ignore it. It does some black magic and then the data is 
-        #sorted, crisp, cleaned and stuffed into the right output format
-
-    # ?processing for "Rohr_2"
-    # !Commented out because a lot is being done on the rohr 1 part, and im too lazy to update dis
-
-    x_values = []
-    for val in list(json_data["raw_minutes"]["rohr_1"].keys()):
-        val = int(val)
-        val -= offset
-        x_values.append(val)
-
-    x_axis_values, unit, plot_title, div_val = await label_x_axis_and_title(x_values=x_values)
-
-
-    jumps_1 = tuple([list(map(lambda val: val / div_val, sublist)) for sublist in jumps_1])
-
-
-    # convert all  minute values from str to int and substract the start value from them, so the diagram starts at 0
     
-    window_size = min(10, len(list(json_data["raw_minutes"]["rohr_1"].values())))  # Use a window size of 10 or the length of the data array, whichever is smaller
-    smoothed_data = np.convolve(list(json_data["raw_minutes"]["rohr_1"].values()), np.ones(window_size) / window_size, mode='same')
-    # Plot data on the broken axes
-        
-    print(jumps_1)
-    
-    if dark_mode == True:
-        with plt.style.context(mpl_dark):
-            plt.figure(figsize=(x_width, y_height),dpi=120)
-
-            if len(jumps_1) != 0:
-                ax = brokenaxes(xlims=jumps_1, hspace=0.05)
-
-                ax.plot(x_axis_values,
-                        list(json_data["raw_minutes"]["rohr_1"].values()), 'c-',label="Geiger counter activity")
-                ax.plot(x_axis_values,
-                        smoothed_data, 'r-', label="Smoothed Geiger counter activity")
-            else:
-                ax = brokenaxes(hspace=0.05)
-                print("Plotting NO data")
-            ax.set_xlabel("Time ("+unit+")")
-            ax.set_ylabel("Activity (CPM)")
-            ax.legend(loc='upper right')
-            plt.title(plot_title)
-
-    else:
-        with plt.style.context(mpl_light):
-            plt.figure(figsize=(x_width, y_height),dpi=120)
-            if len(jumps_1) != 0:
-                ax = brokenaxes(xlims=jumps_1, hspace=0.05)
-
-                ax.plot(x_axis_values,
-                        list(json_data["raw_minutes"]["rohr_1"].values()), 'c-',label="Geiger counter activity")
-                ax.plot(x_axis_values,
-                        smoothed_data, 'r-', label="Smoothed Geiger counter activity")
-            else:
-                ax = brokenaxes(hspace=0.05)
-                print("Plotting NO data")
-            ax.set_xlabel("Time ("+unit+")")
-            ax.set_ylabel("Activity (CPM)")
-            ax.legend(loc='upper right')
-            plt.title(plot_title)
-    
-    # Save the plot
-    plt.savefig("last_x_mins.png")
-    plt.clf()
-    plt.close()
-    time_diff_ms = math.floor(time.time()*1000) - start_time_ms
-    print("Successfully updated all plots in "+str(time_diff_ms)+"ms")
 
 @app.get("/status")
 async def status():
@@ -310,30 +157,4 @@ async def status():
 
     return responses.JSONResponse(content={"status": str(rad_status),  "message":message},headers={"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Content-Type", "Content-Type": "application/json"})
 
-async def label_x_axis_and_title(x_values:list):
-    np_x_values = np.array(x_values)
 
-    units = ["minutes","hours","days","weeks","months", "years"]
-    breakpoints = [240,4320,30240,120960,1576800]
-    # = [4h, 72h, 21d, 12w, 36m]
-    dividing_values = [1,60,1440,10080,43200,525600]
-    # 1h = 60min, 1d = 1440min, 1w = 10080min, 1M = 43200min, 1y = 525600min
-    last_val = np_x_values[-1]
-
-    div_factor = dividing_values[0]
-    unit = units[0]
-    final_x_values = list(np_x_values)
-
-    for i in reversed(range(6)):
-        if last_val >= breakpoints[i-1]:
-            unit = units[i]
-            np_x_values = np_x_values/dividing_values[i]
-            final_x_values = list(np_x_values)
-            div_factor =dividing_values[i]
-            break
-    
-    
-    title_val = round(last_val/div_factor,2)
-    title = "Last "+str(title_val)+" "+unit+" of data"
-
-    return(final_x_values,unit,title,div_factor)
